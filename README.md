@@ -2,9 +2,9 @@
 
 ![MZ-2500 SD Copy Tool](https://github.com/yanataka60/MZ-2500-SD-Copy-Tool/blob/main/JPEG/TITLE.jpg)
 
-　MZ-2500のジョイスティックポート1に挿したSD-dongleのSD-CARDとFD、HDD間でOBT、BTX、BSDファイルを相互にコピーできるツールです。
+　MZ-2500のジョイスティックポート1に挿したSD-dongleのSD-CARDとMZ-2500のFD、HDD間でOBT、BTX、BSDファイルを相互にコピーできるツールです。
 
-　Windows等のツールで作成したMZ-2500用の機械語及びBASICプログラムをMZ-2500にコピー、MZ-2500のFD、HDDのファイルをWindows等のツールで修正してまたMZ-2500に戻す等が簡単にできます。
+　Windows等のツールで作成したMZ-2500用の機械語及びBASICプログラムをMZ-2500のFD、HDDにコピー、MZ-2500のFD、HDDのファイルを取り出してWindows等のツールで修正し、MZ-2500のFD、HDDに戻す等が簡単にできます。
 
 ## 回路図
 　KiCadフォルダ内のSD_dongle.pdfを参照してください。
@@ -36,44 +36,43 @@ MicroSD Card Adapterについているピンヘッダを除去してハンダ付
 
 ### 注3)MZ-2500 SD Copy Tool用SD-DongleではArduino Pro MiniのA4、A5ピンは使用しません。
 
-## ROMへの書込み
-　まず、MONITOR-ROM(0000h-02FFh)、BS MONITOR-ROM(F000h-FFFFh)、LEVEL2 BASIC-ROM(D000h-EFFFh)の内容をすべて読み出し、それぞれのアドレスに配置して0000h～FFFFhまでのバイナリファイルを作成し、バイナリエディタ等で以下の修正をします。
-
-|ADDRESS|修正前|修正後|
-| ------------ | ------------ | ------------ |
-|003C|FF|F0|
-|0052|FF|F0|
-|0080|D5 00|00 03|
-|0082|07 01|03 03|
-|024B|EF|E0|
-|0258|DF|D0|
-|0265|BF|B0|
-|E2C6|4C 4F 41 44 48|46 49 4C 45 53|
-|E42C|4B E5|0603|
-|E42E|EE E4|0903|
-|E430|FC E4|0603|
-|E432|E1 E4|0C03|
-|F1F7|43 54|5344|
-|F1FB|A2 F2|0F03|
-|F21F|F1 F2|1203|
-|F225|4D F3|1503|
-
-　次にバイナリエディタでTK-80BS_SDリポジトリ8080フォルダ中のfile_trans_TK80BS.binの内容で0300h～0977hを書き換えます。
-
-　ROMに焼き、EXT-BOARDに装着します。
-
-　ROMは27512を使うのでS1、S2、S3のショートピンは、全て左側を選択します。
-
-![27512](https://github.com/yanataka60/TK-80BS_SD/blob/main/JPEG/ROM27512.JPG)
-
 ## Arduinoへの書込み
-　Arduino IDEを使ってArduinoフォルダTK-80_SDフォルダ内TK-80_SD.inoを書き込みます。
+　Arduino IDEを使ってArduinoフォルダSD_dongleフォルダ内SD_dongle.inoを書き込みます。
 
 　SdFatライブラリを使用しているのでArduino IDEメニューのライブラリの管理からライブラリマネージャを立ち上げて「SdFat」をインストールしてください。
 
 　「SdFat」で検索すれば見つかります。「SdFat」と「SdFat - Adafruit Fork」が見つかりますが「SdFat」のほうを使っています。
 
-注)Arduinoを基板に直付けしている場合、Arduinoプログラムを書き込むときは、EXT-BOARDをTK-80本体から外し、GAL22V10を外したうえで書き込んでください。
+## 転送プログラム
+　MZ-2500のFD、HDD、FDDエミュレータ用FDイメージにOBTファイルを転送する手段がある方はSD_TRANSフォルダ内のSD_TRANS.binを転送してください。
+
+　転送する手段の無い方はBASIC-S25又はBASIC-M25からモニタMコマンドでSD_LOADERフォルダ内のSD_LOADER.binの内容を入力し、SコマンドでSD_LOADER.bin等の名前を付けてセーブしてください。
+
+　SD_TRANSフォルダ内のSD_TRANS.binをSD-CARDにコピーしておきます。
+
+　SD_LOADER.binの入力間違いが無いことを確認し、
+
+　(BASIC-M25)
+
+　clear &HA000
+
+　bload "SD_LOADER.bin"
+
+　SD_TRANS.binを転送したいFD、HDDのフォルダをカレントフォルダにしておきます。
+
+　call &HA000
+
+　(BASIC-S25)
+
+　limit &HA000
+
+　load "SD_LOADER.bin"
+
+　SD_TRANS.binを転送したいFD、HDDのフォルダをカレントフォルダにしておきます。
+
+　call &HA000
+
+　「COPY OK」と表示されて終了し、SD_TRANS.binがFD、HDDのカレントフォルダに転送されているはずです。
 
 ## SD-CARD
 　出来れば8GB以下のSDカードを用意してください。
