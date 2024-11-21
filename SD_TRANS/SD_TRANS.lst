@@ -394,7 +394,7 @@
 0001A5 A1A5 A7               4              AND     A                   ;0以外ならERROR
 0001A6 A1A6 C237A1          10              JP      NZ,ERR1
                                 
-0001A9 A1A9 1110A5          10              LD      DE,QNAME            ;SD-CARDコピー元ファイル名入力
+0001A9 A1A9 1118A5          10              LD      DE,Q2NAME           ;FDコピー元ファイル名入力
                                             SVC     CRTMSG
                                +; a1 = 0x0005:5
 0001AC A1AC DF              12 +            RST     18H
@@ -936,8 +936,8 @@
             4420333A53442044    
             697220393A43616E    
             63656C2900          
-000510 A510 53442D4341524420    QNAME:      DEFB    'SD-CARD File Name?',00H
-            46696C65204E616D    
+000510 A510 53442D4341524420    QNAME:      DEFB    'SD-CARD '
+000518 A518 46696C65204E616D    Q2NAME:     DEFB    'File Name?',00H
             653F00              
 000523 A523 53442D4341524420    QFIND:      DEFB    'SD-CARD Search Name?',00H
             536561726368204E    

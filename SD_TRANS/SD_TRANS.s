@@ -288,7 +288,7 @@ SSAVE:
 			AND		A					;0以外ならERROR
 			JP		NZ,ERR1
 
-			LD		DE,QNAME			;SD-CARDコピー元ファイル名入力
+			LD		DE,Q2NAME			;FDコピー元ファイル名入力
 			SVC		CRTMSG
 			SVC		BINKEY
 			
@@ -719,7 +719,8 @@ ERR_MSG5:	DEFB	'BSD Not Read Mode',0DH,00H
 ERR_MSG9:	DEFB	'Copy Cancel',0DH,00H
 MSG99:		DEFB	'Error',0DH,0AH,00H
 GSEL:		DEFB	'Select?(1:SD->FD 2:FD->SD 3:SD Dir 9:Cancel)',00H
-QNAME:		DEFB	'SD-CARD File Name?',00H
+QNAME:		DEFB	'SD-CARD '
+Q2NAME:		DEFB	'File Name?',00H
 QFIND:		DEFB	'SD-CARD Search Name?',00H
 QMODE:		DEFB	'Mode(1:OBT 2:BTX 3:BSD)?',00H
 QLOAD:		DEFB	'Load Address?',00H
