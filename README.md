@@ -166,7 +166,9 @@ MicroSD Card Adapterについているピンヘッダを除去してハンダ付
 　SD-CARDにコピーされるファイルのファイル名にはFD、HDD上のファイル情報に基づき、拡張子及び先頭アドレス、実行アドレスが付加されます。
 
 　　[OBTファイル] test.OBJ -> test.OBJ_A000_A000.OBT
+
 　　[BTXファイル] test.m25 -> test.m25.BTX
+
 　　[BSDファイル] test     -> test.BSD
 
 ### 3 SD DIR
