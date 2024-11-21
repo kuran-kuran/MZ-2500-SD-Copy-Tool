@@ -45,7 +45,7 @@
                                 
 000000 A000                                 ORG     0A000H
                                 
-000000 A000 1150A1          10              LD      DE,TITLE            ;「COPYING SD_TRANS.m25」表示
+000000 A000 1150A1          10              LD      DE,TITLE            ;「COPYING SD_TRANS.bin」表示
                                             SVC     CRTMSG
                                +; a1 = 0x0005:5
 000003 A003 DF              12 +            RST     18H
@@ -295,8 +295,8 @@
 00014F A14F C9              10              RET
                                         
 000150 A150 434F5059494E4720    TITLE:      DEFB    'COPYING '
-000158 A158 53445F5452414E53    FNAME:      DEFB    'SD_TRANS.m25',00H
-            2E6D323500          
+000158 A158 53445F5452414E53    FNAME:      DEFB    'SD_TRANS.bin',00H
+            2E62696E00          
 000165 A165 4F4B0D00            OK_MSG:     DEFB    'OK',0DH,00H
 000169 A169 4552524F520D00      ERR_MSG:    DEFB    'ERROR',0DH,00H
                                 
