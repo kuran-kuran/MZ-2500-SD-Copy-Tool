@@ -1,0 +1,976 @@
+﻿                                ;*** AILZ80ASM *** Z-80 Assembler, version 1.0.19.0, LST:Full:4
+       0002                     CR2         EQU     02H                 ;行の先頭で無ければ改行
+       0003                     CRT1C       EQU     03H                 ;1文字表示 A:文字コード
+       0005                     CRTMSG      EQU     05H                 ;文字列表示 DE:文字列先頭アドレス 00Hで終了すること
+       000D                     INKEY       EQU     0DH                 ;キーボードから1字入力 
+                                                                        ;入力 Aレジスタ BIT0 0:キーが押されていなければZF=1でリターン
+                                                                        ;                    1:キーが押されるまで待つ。
+                                                                        ;               BIT1 0:ファンクションキーを展開しない。
+                                                                        ;                    1:ファンクションキーを展開する。
+                                                                        ;               BIT2 0:カナ漢字変換をしない。
+                                                                        ;                    1:カナ漢字変換をする。
+                                                                        ;               BIT3 0:アルゴキー、HARDCOPYキーを有効にする。
+                                                                        ;                    1:アルゴキー、HARDCOPYキーはフラグのみセット。
+       0014                     DEHEX       EQU     14H                 ;ASCII文字列の16進数をバイナリに変換 入力 HL:文字列のポインタ 出力 DE:16進数
+       0017                     COUNT       EQU     17H                 ;Bレジスタ <- (DE)の文字列長
+       0026                     PRT1C       EQU     26H                 ;ファイルへ1文字出力 A:DATA
+       0027                     INP1C       EQU     27H                 ;ファイルから1文字入力 A:DATA CF=1:EOF
+       002D                     DEVFN       EQU     2DH                 ;(DE)の文字列をデバイス名ディレクトリ名、ファイル名として解釈する
+                                                                        ;DE:文字列先頭アドレス B:文字列長
+       002E                     LUCHK       EQU     2EH                 ;使用するLOGICAL UNITを指定する 入力 A:LU 出力 A 1:READ OPEN 2:WRITE OPEN 4:RANDOM OPEN CF=1 OPENされていない
+       002F                     LOPEN       EQU     2FH                 ;ファイルのREADオープン .DEVFNをコールした後にコールする。
+       0031                     SAVEF       EQU     31H                 ;ファイルをSAVEオープン .DEVFNをコールした後にコールする。
+       0033                     RWOPN       EQU     33H                 ;ファイルオープン D 1:READ OPEN 2:WRITE OPEN 3:RANDOM OPEN 10H:APPEND OPEN A:LOGICAL UNIT NUMBER
+       0034                     BINKEY      EQU     34H                 ;現在のカーソル位置から入力 出力 DE:文字列バッファ
+       0038                     CLKL        EQU     38H                 ;ファイルクローズ A 0:すべてをCLOSE/KILL 0以外:AのLUをCLOSE/KILL B=0 KILL B<>0 CLOSE
+       0042                     DFUNC       EQU     42H                 ;A:1 レコード単位のREAD A:2 レコード単位のSAVE
+                                                                        ;HL:データのアドレス DE:バイトサイズ BC:ブロックNO
+                                
+       0800                     ELMD        EQU     0800H               ;ファイルモード 1:OBJ 2:BTX 3:BSD
+       0801                     ELMD1       EQU     0801H               ;ファイル名
+       0814                     ELMD20      EQU     0814H               ;ファイルサイズ
+       0816                     ELMD22      EQU     0816H               ;LOAD開始アドレス
+       0818                     ELMD24      EQU     0818H               ;実行開始アドレス
+       081A                     ELMD26      EQU     081AH
+       081E                     ELMD30      EQU     081EH               ;開始ブロックNO
+       0820                     ELMD32      EQU     0820H
+                                
+                                SVC         MACRO   a1
+                                            RST     18H
+                                            DB      a1
+                                            ENDM
+                                
+                                ;EFH
+                                ;7
+                                ;6 IN
+                                ;5 IN
+                                ;4 IN 
+                                ;3 IN 
+                                ;2 IN CTRL
+                                ;1 IN DATA1
+                                ;0 IN DATA0
+                                
+                                ;7
+                                ;6 OUT
+                                ;5 OUT
+                                ;4 OUT CTRL
+                                ;3 OUT
+                                ;2 OUT
+                                ;1 OUT DATA1
+                                ;0 OUT DATA0
+                                
+000000 A000                                 ORG     0A000H
+                                
+000000 A000 1153A4          10              LD      DE,TITLE            ;TITLE表示
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+000003 A003 DF              12 +            RST     18H
+000004 A004 05                 +            DB      a1
+                                            SVC     CR2                 ;改行
+                               +; a1 = 0x0002:2
+000005 A005 DF              12 +            RST     18H
+000006 A006 02                 +            DB      a1
+                                
+000007 A007 11E3A4          10  GS1:        LD      DE,GSEL             ;選択
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+00000A A00A DF              12 +            RST     18H
+00000B A00B 05                 +            DB      a1
+                                            SVC     BINKEY
+                               +; a1 = 0x0034:52
+00000C A00C DF              12 +            RST     18H
+00000D A00D 34                 +            DB      a1
+00000E A00E 1A               7              LD      A,(DE)
+00000F A00F FE39             7              CP      39H                 ;9ならキャンセル
+000011 A011 CA61A1          10              JP      Z,ERR9
+000014 A014 FE31             7              CP      31H                 ;SLOAD
+000016 A016 280C            12              JR      Z,SLOAD
+000018 A018 FE32             7              CP      32H                 ;SSAVE
+00001A A01A CAA0A1          10              JP      Z,SSAVE
+00001D A01D FE33             7              CP      33H                 ;SDIR
+00001F A01F CAA7A2          10              JP      Z,SDIR
+000022 A022 18E3            12              JR      GS1
+                                
+                                ;*********** BTX、OBT転送処理 SD -> FD **********************************
+000024 A024 3E80             7  SLOAD:      LD      A,80H               ;コマンド「80」送信(SDからLOAD)
+000026 A026 CD92A3          17              CALL    STCD
+000029 A029 A7               4              AND     A                   ;0以外ならERROR
+00002A A02A C237A1          10              JP      NZ,ERR1
+                                            
+00002D A02D 1110A5          10              LD      DE,QNAME            ;SD-CARDコピー元ファイル名入力
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+000030 A030 DF              12 +            RST     18H
+000031 A031 05                 +            DB      a1
+                                            SVC     BINKEY
+                               +; a1 = 0x0034:52
+000032 A032 DF              12 +            RST     18H
+000033 A033 34                 +            DB      a1
+                                            
+000034 A034 0621             7              LD      B,21H
+000036 A036 21BCA5          10              LD      HL,DNAME
+000039 A039 1A               7  FN1:        LD      A,(DE)
+00003A A03A 77               7              LD      (HL),A
+00003B A03B CDD0A3          17              CALL    SBYTE               ;ファイル名を送信
+00003E A03E 13               6              INC     DE
+00003F A03F 23               6              INC     HL
+000040 A040 10F7            13              DJNZ    FN1
+000042 A042 CDCDA3          17              CALL    RBYTE               ;ファイル名のファイルがSDに存在すればA=0 0以外ならERROR
+000045 A045 A7               4              AND     A
+000046 A046 C23CA1          10              JP      NZ,ERR2
+                                
+000049 A049 1138A5          10  MD1:        LD      DE,QMODE            ;ファイルモード指定
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+00004C A04C DF              12 +            RST     18H
+00004D A04D 05                 +            DB      a1
+                                            SVC     BINKEY
+                               +; a1 = 0x0034:52
+00004E A04E DF              12 +            RST     18H
+00004F A04F 34                 +            DB      a1
+000050 A050 1A               7              LD      A,(DE)
+000051 A051 FE31             7              CP      31H                 ;0以下ならやり直し
+000053 A053 38F4            12              JR      C,MD1
+000055 A055 FE34             7              CP      34H                 ;4以上ならやり直し
+000057 A057 30F0            12              JR      NC,MD1
+                                
+000059 A059 D630             7              SUB     30H
+00005B A05B 32E6A5          13              LD      (FMODE),A           ;ファイルモード退避
+                                            
+00005E A05E CDCDA3          17              CALL    RBYTE
+000061 A061 6F               4              LD      L,A
+000062 A062 CDCDA3          17              CALL    RBYTE
+000065 A065 67               4              LD      H,A
+000066 A066 22E7A5          16              LD      (FILESIZE),HL       ;ファイルサイズ受信退避
+                                
+000069 A069 3AE6A5          13              LD      A,(FMODE)
+00006C A06C FE01             7              CP      01H
+00006E A06E 202A            12              JR      NZ,CP1
+                                            
+000070 A070 1151A5          10              LD      DE,QLOAD            ;OBTファイルならLOAD START ADDRESS指定
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+000073 A073 DF              12 +            RST     18H
+000074 A074 05                 +            DB      a1
+                                            SVC     BINKEY
+                               +; a1 = 0x0034:52
+000075 A075 DF              12 +            RST     18H
+000076 A076 34                 +            DB      a1
+000077 A077 62               4              LD      H,D
+000078 A078 6B               4              LD      L,E
+                                            SVC     DEHEX               ;入力文字を16進数4桁に変換
+                               +; a1 = 0x0014:20
+000079 A079 DF              12 +            RST     18H
+00007A A07A 14                 +            DB      a1
+00007B A07B CD99A3          17              CALL    DSP4HEX             ;DEレジスタの16進数を表示
+00007E A07E ED53E9A5        20              LD      (LOADADR),DE        ;LOAD開始アドレス退避
+                                            SVC     CR2                 ;改行
+                               +; a1 = 0x0002:2
+000082 A082 DF              12 +            RST     18H
+000083 A083 02                 +            DB      a1
+                                
+000084 A084 115FA5          10              LD      DE,QEXE             ;OBTファイルならEXECUTE ADDRESS指定
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+000087 A087 DF              12 +            RST     18H
+000088 A088 05                 +            DB      a1
+                                            SVC     BINKEY
+                               +; a1 = 0x0034:52
+000089 A089 DF              12 +            RST     18H
+00008A A08A 34                 +            DB      a1
+00008B A08B 62               4              LD      H,D
+00008C A08C 6B               4              LD      L,E
+                                            SVC     DEHEX               ;入力文字を16進数4桁に変換
+                               +; a1 = 0x0014:20
+00008D A08D DF              12 +            RST     18H
+00008E A08E 14                 +            DB      a1
+00008F A08F CD99A3          17              CALL    DSP4HEX             ;DEレジスタの16進数を表示
+000092 A092 ED53EBA5        20              LD      (EXECADR),DE        ;実行開始アドレス退避
+                                            SVC     CR2                 ;改行
+                               +; a1 = 0x0002:2
+000096 A096 DF              12 +            RST     18H
+000097 A097 02                 +            DB      a1
+000098 A098 1809            12              JR      CP2
+                                            
+00009A A09A 210000          10  CP1:        LD      HL,0000H
+00009D A09D 22E9A5          16              LD      (LOADADR),HL        ;OBTファイル以外なら0000Hに設定
+0000A0 A0A0 22EBA5          16              LD      (EXECADR),HL        ;OBTファイル以外なら0000Hに設定
+                                
+0000A3 A0A3 11BCA5          10  CP2:        LD      DE,DNAME            ;コピー先ファイル名設定
+                                            SVC     COUNT               ;Bレジスタ <- (DE)の文字列長
+                               +; a1 = 0x0017:23
+0000A6 A0A6 DF              12 +            RST     18H
+0000A7 A0A7 17                 +            DB      a1
+                                            SVC     DEVFN               ;ソースファイル名解釈
+                               +; a1 = 0x002d:45
+0000A8 A0A8 DF              12 +            RST     18H
+0000A9 A0A9 2D                 +            DB      a1
+0000AA A0AA 3AE6A5          13              LD      A,(FMODE)
+0000AD A0AD FE03             7              CP      03H                 ;BSDファイルなら別処理
+0000AF A0AF CA67A1          10              JP      Z,BSD
+                                
+0000B2 A0B2 320008          13              LD      (ELMD),A            ;ファイルモード設定
+0000B5 A0B5 2AE7A5          16              LD      HL,(FILESIZE)
+0000B8 A0B8 221408          16              LD      (ELMD20),HL         ;ファイルサイズ設定
+0000BB A0BB 2AE9A5          16              LD      HL,(LOADADR)
+0000BE A0BE 221608          16              LD      (ELMD22),HL         ;LOAD開始アドレス設定
+0000C1 A0C1 2AEBA5          16              LD      HL,(EXECADR)
+0000C4 A0C4 221808          16              LD      (ELMD24),HL         ;実行開始アドレス設定
+0000C7 A0C7 AF               4              XOR     A
+                                            SVC     SAVEF               ;コピー先ファイルをSAVEオープン
+                               +; a1 = 0x0031:49
+0000C8 A0C8 DF              12 +            RST     18H
+0000C9 A0C9 31                 +            DB      a1
+0000CA A0CA 2A1E08          16              LD      HL,(ELMD30)         ;開始ブロックNOを取得
+0000CD A0CD 22E4A5          16              LD      (DBLOCK),HL         ;退避
+                                ;
+0000D0 A0D0 AF               4              XOR     A                   ;処理継続指示
+0000D1 A0D1 CDD0A3          17              CALL    SBYTE
+0000D4 A0D4 ED4BE7A5        20              LD      BC,(FILESIZE)
+0000D8 A0D8 78               4              LD      A,B
+0000D9 A0D9 A7               4              AND     A
+0000DA A0DA 282E            12              JR      Z,RCV2              ;ブロック数が0ならRCV2へ
+                                
+0000DC A0DC C5              11  RCV0:       PUSH    BC
+0000DD A0DD 0600             7              LD      B,00H               ;1ブロック分256Byteを受信してBUUFERに格納
+0000DF A0DF 21EDA5          10              LD      HL,BUFFER
+0000E2 A0E2 CDCDA3          17  RCV1:       CALL    RBYTE
+0000E5 A0E5 77               7              LD      (HL),A
+0000E6 A0E6 23               6              INC     HL
+0000E7 A0E7 10F9            13              DJNZ    RCV1
+                                
+0000E9 A0E9 11BCA5          10              LD      DE,DNAME            ;コピー先ファイル名設定
+                                            SVC     COUNT               ;Bレジスタ <- (DE)の文字列長
+                               +; a1 = 0x0017:23
+0000EC A0EC DF              12 +            RST     18H
+0000ED A0ED 17                 +            DB      a1
+                                            SVC     DEVFN               ;コピー元ファイル名解釈
+                               +; a1 = 0x002d:45
+0000EE A0EE DF              12 +            RST     18H
+0000EF A0EF 2D                 +            DB      a1
+0000F0 A0F0 21EDA5          10              LD      HL,BUFFER
+0000F3 A0F3 110001          10              LD      DE,0100H
+0000F6 A0F6 ED4BE4A5        20              LD      BC,(DBLOCK)         ;コピー先ブロック位置設定
+0000FA A0FA 3E02             7              LD      A,02H
+                                            SVC     DFUNC               ;1レコード書き込み
+                               +; a1 = 0x0042:66
+0000FC A0FC DF              12 +            RST     18H
+0000FD A0FD 42                 +            DB      a1
+0000FE A0FE 03               6              INC     BC
+0000FF A0FF ED43E4A5        20              LD      (DBLOCK),BC         ;コピー先ブロック位置+1
+                                
+000103 A103 3E2E             7              LD      A,2EH
+                                            SVC     CRT1C               ;進捗を「.」として表示
+                               +; a1 = 0x0003:3
+000105 A105 DF              12 +            RST     18H
+000106 A106 03                 +            DB      a1
+000107 A107 C1              10              POP     BC
+000108 A108 10D2            13              DJNZ    RCV0                ;ブロック分ループ
+                                
+00010A A10A 79               4  RCV2:       LD      A,C
+00010B A10B A7               4              AND     A
+00010C A10C 2824            12              JR      Z,RCV4              ;1ブロックに満たない端数Byteが0ならRCV4へ
+                                            
+00010E A10E 41               4              LD      B,C                 ;端数分を受信
+00010F A10F 21EDA5          10              LD      HL,BUFFER
+000112 A112 CDCDA3          17  RCV3:       CALL    RBYTE
+000115 A115 77               7              LD      (HL),A
+000116 A116 23               6              INC     HL
+000117 A117 10F9            13              DJNZ    RCV3
+                                
+000119 A119 11BCA5          10              LD      DE,DNAME            ;コピー先ファイル名設定
+                                            SVC     COUNT               ;Bレジスタ <- (DE)の文字列長
+                               +; a1 = 0x0017:23
+00011C A11C DF              12 +            RST     18H
+00011D A11D 17                 +            DB      a1
+                                            SVC     DEVFN               ;コピー元ファイル名解釈
+                               +; a1 = 0x002d:45
+00011E A11E DF              12 +            RST     18H
+00011F A11F 2D                 +            DB      a1
+000120 A120 21EDA5          10              LD      HL,BUFFER
+000123 A123 110001          10              LD      DE,0100H
+000126 A126 ED4BE4A5        20              LD      BC,(DBLOCK)         ;コピー先ブロック位置設定
+00012A A12A 3E02             7              LD      A,2
+                                            SVC     DFUNC               ;1レコード書き込み
+                               +; a1 = 0x0042:66
+00012C A12C DF              12 +            RST     18H
+00012D A12D 42                 +            DB      a1
+00012E A12E 3E2E             7              LD      A,2EH
+                                            SVC     CRT1C               ;進捗を「.」として表示
+                               +; a1 = 0x0003:3
+000130 A130 DF              12 +            RST     18H
+000131 A131 03                 +            DB      a1
+                                
+000132 A132 1167A4          10  RCV4:       LD      DE,OK_MSG           ;「COPY OK」表示
+000135 A135 182D            12              JR      RCV5
+                                ;
+000137 A137 1170A4          10  ERR1:       LD      DE,ERR_MSG1         ;SD-CARD INITIALIZE ERROR
+00013A A13A 1828            12              JR      RCV5
+00013C A13C 118AA4          10  ERR2:       LD      DE,ERR_MSG2         ;NOT FIND FILE
+00013F A13F 1823            12              JR      RCV5
+000141 A141 1199A4          10  ERR3:       LD      DE,ERR_MSG3         ;BSD NOT OPEN
+000144 A144 1809            12              JR      ERR31
+000146 A146 3E01             7  ERR4:       LD      A,1
+000148 A148 0601             7              LD      B,1
+                                            SVC     CLKL                ;ファイルクローズ
+                               +; a1 = 0x0038:56
+00014A A14A DF              12 +            RST     18H
+00014B A14B 38                 +            DB      a1
+00014C A14C 11A7A4          10              LD      DE,ERR_MSG4         ;BSD NOT WRITE MODE
+00014F A14F 3EFF             7  ERR31:      LD      A,0FFH              ;処理打ち切り指示
+000151 A151 CDD0A3          17              CALL    SBYTE
+000154 A154 180E            12              JR      RCV5
+000156 A156 3E01             7  ERR5:       LD      A,1
+000158 A158 0601             7              LD      B,1
+                                            SVC     CLKL                ;ファイルクローズ
+                               +; a1 = 0x0038:56
+00015A A15A DF              12 +            RST     18H
+00015B A15B 38                 +            DB      a1
+00015C A15C 11BBA4          10              LD      DE,ERR_MSG5         ;BSD NOT READ MODE
+00015F A15F 18EE            12              JR      ERR31
+000161 A161 11CEA4          10  ERR9:       LD      DE,ERR_MSG9         ;COPY CANCEL
+                                RCV5:       SVC     CRTMSG
+                               +; a1 = 0x0005:5
+000164 A164 DF              12 +            RST     18H
+000165 A165 05                 +            DB      a1
+000166 A166 C9              10              RET
+                                
+                                ;********** BSDファイル転送処理 SD -> FD ****************************
+       A167                     BSD:
+000167 A167 320008          13              LD      (ELMD),A            ;ファイルモード設定
+00016A A16A 1602             7              LD      D,2                 ;WRITE OPEN
+00016C A16C 3E01             7              LD      A,1                 ;LOGICAL NO=1
+                                            SVC     RWOPN
+                               +; a1 = 0x0033:51
+00016E A16E DF              12 +            RST     18H
+00016F A16F 33                 +            DB      a1
+000170 A170 3E01             7              LD      A,1
+                                            SVC     LUCHK               ;OPEN出来たかチェック
+                               +; a1 = 0x002e:46
+000172 A172 DF              12 +            RST     18H
+000173 A173 2E                 +            DB      a1
+000174 A174 38CB            12              JR      C,ERR3              ;OPEN出来なかったらERR
+000176 A176 FE02             7              CP      2
+000178 A178 20CC            12              JR      NZ,ERR4             ;WRITEモードでオープンされていなければERR
+                                            
+00017A A17A AF               4              XOR     A                   ;処理継続指示
+00017B A17B CDD0A3          17              CALL    SBYTE
+00017E A17E ED4BE7A5        20              LD      BC,(FILESIZE)
+000182 A182 78               4              LD      A,B
+000183 A183 B1               4              OR      C
+000184 A184 2812            12              JR      Z,BSD4              ;ファイルサイズが0ならクローズ
+                                
+000186 A186 CDCDA3          17  BSD1:       CALL    RBYTE
+                                            SVC     PRT1C
+                               +; a1 = 0x0026:38
+000189 A189 DF              12 +            RST     18H
+00018A A18A 26                 +            DB      a1
+00018B A18B 0B               6              DEC     BC
+00018C A18C 79               4              LD      A,C
+00018D A18D A7               4              AND     A
+00018E A18E 2004            12              JR      NZ,BSD2
+000190 A190 3E2E             7              LD      A,2EH               ;256Byteごとに進捗を「.」として表示
+                                            SVC     CRT1C
+                               +; a1 = 0x0003:3
+000192 A192 DF              12 +            RST     18H
+000193 A193 03                 +            DB      a1
+000194 A194 78               4  BSD2:       LD      A,B
+000195 A195 B1               4              OR      C
+000196 A196 20EE            12              JR      NZ,BSD1             ;ファイルサイズ分ループ
+                                
+000198 A198 3E01             7  BSD4:       LD      A,1
+00019A A19A 0601             7              LD      B,1
+                                            SVC     CLKL                ;ファイルクローズ
+                               +; a1 = 0x0038:56
+00019C A19C DF              12 +            RST     18H
+00019D A19D 38                 +            DB      a1
+                                            
+00019E A19E 1892            12              JR      RCV4                ;「COPY OK」表示
+                                
+                                ;*********** BTX、OBT転送処理 FD -> SD **********************************
+       A1A0                     SSAVE:
+0001A0 A1A0 3E81             7              LD      A,81H               ;コマンド「81」送信(SDへSAVE)
+0001A2 A1A2 CD92A3          17              CALL    STCD
+0001A5 A1A5 A7               4              AND     A                   ;0以外ならERROR
+0001A6 A1A6 C237A1          10              JP      NZ,ERR1
+                                
+0001A9 A1A9 1110A5          10              LD      DE,QNAME            ;SD-CARDコピー元ファイル名入力
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+0001AC A1AC DF              12 +            RST     18H
+0001AD A1AD 05                 +            DB      a1
+                                            SVC     BINKEY
+                               +; a1 = 0x0034:52
+0001AE A1AE DF              12 +            RST     18H
+0001AF A1AF 34                 +            DB      a1
+                                            
+0001B0 A1B0 0621             7              LD      B,21H
+0001B2 A1B2 21BCA5          10              LD      HL,DNAME
+0001B5 A1B5 1A               7  SS1:        LD      A,(DE)
+0001B6 A1B6 77               7              LD      (HL),A
+0001B7 A1B7 CDD0A3          17              CALL    SBYTE               ;ファイル名を送信
+0001BA A1BA 13               6              INC     DE
+0001BB A1BB 23               6              INC     HL
+0001BC A1BC 10F7            13              DJNZ    SS1
+                                
+0001BE A1BE 11BCA5          10              LD      DE,DNAME            ;コピー先ファイル名設定
+                                            SVC     COUNT               ;Bレジスタ <- (DE)の文字列長
+                               +; a1 = 0x0017:23
+0001C1 A1C1 DF              12 +            RST     18H
+0001C2 A1C2 17                 +            DB      a1
+                                            SVC     DEVFN               ;コピー元ファイル名解釈
+                               +; a1 = 0x002d:45
+0001C3 A1C3 DF              12 +            RST     18H
+0001C4 A1C4 2D                 +            DB      a1
+                                            SVC     LOPEN               ;コピー元ファイルREADオープン
+                               +; a1 = 0x002f:47
+0001C5 A1C5 DF              12 +            RST     18H
+0001C6 A1C6 2F                 +            DB      a1
+0001C7 A1C7 3A0008          13              LD      A,(ELMD)            ;ファイルモード読出し
+0001CA A1CA 32E6A5          13              LD      (FMODE),A           ;退避
+0001CD A1CD CDD0A3          17              CALL    SBYTE               ;ファイルモード送信
+                                
+0001D0 A1D0 2A1E08          16              LD      HL,(ELMD30)         ;開始ブロックNOを読み出し
+0001D3 A1D3 22E4A5          16              LD      (DBLOCK),HL         ;退避
+                                            
+0001D6 A1D6 2A1408          16              LD      HL,(ELMD20)         ;ファイルサイズ読出し
+0001D9 A1D9 22E7A5          16              LD      (FILESIZE),HL       ;退避
+0001DC A1DC 7C               4              LD      A,H
+0001DD A1DD CDD0A3          17              CALL    SBYTE               ;送信
+0001E0 A1E0 7D               4              LD      A,L
+0001E1 A1E1 CDD0A3          17              CALL    SBYTE               ;送信
+                                
+0001E4 A1E4 2A1608          16              LD      HL,(ELMD22)         ;LOAD開始アドレス取得
+0001E7 A1E7 22E9A5          16              LD      (LOADADR),HL        ;退避
+0001EA A1EA 7C               4              LD      A,H
+0001EB A1EB CDD0A3          17              CALL    SBYTE               ;送信
+0001EE A1EE 7D               4              LD      A,L
+0001EF A1EF CDD0A3          17              CALL    SBYTE               ;送信
+                                
+0001F2 A1F2 2A1808          16              LD      HL,(ELMD24)         ;実行開始アドレス取得
+0001F5 A1F5 22EBA5          16              LD      (EXECADR),HL        ;退避
+0001F8 A1F8 7C               4              LD      A,H
+0001F9 A1F9 CDD0A3          17              CALL    SBYTE               ;送信
+0001FC A1FC 7D               4              LD      A,L
+0001FD A1FD CDD0A3          17              CALL    SBYTE               ;送信
+                                
+000200 A200 CDCDA3          17              CALL    RBYTE               ;WRITEオープン出来ればA=0 0以外ならERROR
+000203 A203 A7               4              AND     A
+000204 A204 C23CA1          10              JP      NZ,ERR2
+                                
+000207 A207 3AE6A5          13              LD      A,(FMODE)
+00020A A20A FE03             7              CP      03H
+00020C A20C CA72A2          10              JP      Z,SBSD              ;BSDファイルなら別処理
+                                
+00020F A20F AF               4              XOR     A                   ;処理継続指示
+000210 A210 CDD0A3          17              CALL    SBYTE
+000213 A213 ED4BE7A5        20              LD      BC,(FILESIZE)
+000217 A217 C5              11  SS4:        PUSH    BC
+000218 A218 11BCA5          10              LD      DE,DNAME            ;コピー元ファイル名
+                                            SVC     COUNT               ;Bレジスタ <- (DE)の文字列長
+                               +; a1 = 0x0017:23
+00021B A21B DF              12 +            RST     18H
+00021C A21C 17                 +            DB      a1
+                                            SVC     DEVFN               ;コピー元ファイル名解釈
+                               +; a1 = 0x002d:45
+00021D A21D DF              12 +            RST     18H
+00021E A21E 2D                 +            DB      a1
+00021F A21F 21EDA5          10              LD      HL,BUFFER
+000222 A222 110001          10              LD      DE,0100H
+000225 A225 ED4BE4A5        20              LD      BC,(DBLOCK)         ;コピー元ブロック位置設定
+000229 A229 3E01             7              LD      A,1
+                                            SVC     DFUNC               ;1レコード読込
+                               +; a1 = 0x0042:66
+00022B A22B DF              12 +            RST     18H
+00022C A22C 42                 +            DB      a1
+00022D A22D 03               6              INC     BC
+00022E A22E ED43E4A5        20              LD      (DBLOCK),BC         ;コピー元ブロック位置+1
+                                
+000232 A232 0600             7              LD      B,00H
+000234 A234 21EDA5          10              LD      HL,BUFFER
+000237 A237 7E               7  SS5:        LD      A,(HL)
+000238 A238 CDD0A3          17              CALL    SBYTE
+00023B A23B 23               6              INC     HL
+00023C A23C 10F9            13              DJNZ    SS5
+                                            
+00023E A23E 3E2E             7              LD      A,2EH
+                                            SVC     CRT1C               ;進捗を「.」として表示
+                               +; a1 = 0x0003:3
+000240 A240 DF              12 +            RST     18H
+000241 A241 03                 +            DB      a1
+000242 A242 C1              10              POP     BC
+000243 A243 10D2            13              DJNZ    SS4                 ;ブロック数分繰り返し
+                                
+000245 A245 79               4              LD      A,C
+000246 A246 A7               4              AND     A
+000247 A247 2826            12              JR      Z,SS7
+000249 A249 C5              11              PUSH    BC
+00024A A24A 11BCA5          10              LD      DE,DNAME            ;コピー元ファイル名
+                                            SVC     COUNT               ;Bレジスタ <- (DE)の文字列長
+                               +; a1 = 0x0017:23
+00024D A24D DF              12 +            RST     18H
+00024E A24E 17                 +            DB      a1
+                                            SVC     DEVFN               ;コピー元ファイル名解釈
+                               +; a1 = 0x002d:45
+00024F A24F DF              12 +            RST     18H
+000250 A250 2D                 +            DB      a1
+000251 A251 21EDA5          10              LD      HL,BUFFER
+000254 A254 110001          10              LD      DE,0100H
+000257 A257 ED4BE4A5        20              LD      BC,(DBLOCK)         ;コピー元ブロック位置設定
+00025B A25B 3E01             7              LD      A,1
+                                            SVC     DFUNC               ;1レコード読込
+                               +; a1 = 0x0042:66
+00025D A25D DF              12 +            RST     18H
+00025E A25E 42                 +            DB      a1
+                                
+00025F A25F C1              10              POP     BC
+000260 A260 41               4              LD      B,C
+000261 A261 21EDA5          10              LD      HL,BUFFER
+000264 A264 7E               7  SS6:        LD      A,(HL)
+000265 A265 CDD0A3          17              CALL    SBYTE
+000268 A268 23               6              INC     HL
+000269 A269 10F9            13              DJNZ    SS6
+00026B A26B 3E2E             7              LD      A,2EH
+                                            SVC     CRT1C               ;進捗を「.」として表示
+                               +; a1 = 0x0003:3
+00026D A26D DF              12 +            RST     18H
+00026E A26E 03                 +            DB      a1
+00026F A26F C332A1          10  SS7:        JP      RCV4                ;「COPY OK」表示
+                                            
+                                ;********** BSDファイル転送処理 FD -> SD ********************
+       A272                     SBSD:
+000272 A272 1601             7              LD      D,1                 ;READ OPEN
+000274 A274 3E01             7              LD      A,1                 ;LOGICAL NO=1
+                                            SVC     RWOPN
+                               +; a1 = 0x0033:51
+000276 A276 DF              12 +            RST     18H
+000277 A277 33                 +            DB      a1
+                                            
+000278 A278 3E01             7              LD      A,1
+                                            SVC     LUCHK               ;OPEN出来たかチェック
+                               +; a1 = 0x002e:46
+00027A A27A DF              12 +            RST     18H
+00027B A27B 2E                 +            DB      a1
+00027C A27C DA41A1          10              JP      C,ERR3              ;OPEN出来なかったらERR
+00027F A27F FE01             7              CP      1
+000281 A281 C256A1          10              JP      NZ,ERR5             ;READEモードでオープンされていなければERR
+                                            
+000284 A284 AF               4              XOR     A                   ;処理継続指示
+000285 A285 CDD0A3          17              CALL    SBYTE
+000288 A288 ED4BE7A5        20              LD      BC,(FILESIZE)
+                                
+                                SBSD1:      SVC     INP1C
+                               +; a1 = 0x0027:39
+00028C A28C DF              12 +            RST     18H
+00028D A28D 27                 +            DB      a1
+00028E A28E 380E            12              JR      C,SBSD2
+000290 A290 CDD0A3          17              CALL    SBYTE
+000293 A293 0B               6              DEC     BC
+000294 A294 79               4              LD      A,C
+000295 A295 A7               4              AND     A
+000296 A296 20F4            12              JR      NZ,SBSD1
+000298 A298 3E2E             7              LD      A,2EH               ;256Byteごとに進捗を「.」として表示
+                                            SVC     CRT1C
+                               +; a1 = 0x0003:3
+00029A A29A DF              12 +            RST     18H
+00029B A29B 03                 +            DB      a1
+00029C A29C 18EE            12              JR      SBSD1
+                                            
+00029E A29E 3E01             7  SBSD2:      LD      A,1
+0002A0 A2A0 0601             7              LD      B,1
+                                            SVC     CLKL                ;ファイルクローズ
+                               +; a1 = 0x0038:56
+0002A2 A2A2 DF              12 +            RST     18H
+0002A3 A2A3 38                 +            DB      a1
+                                            
+0002A4 A2A4 C332A1          10              JP      RCV4                ;「COPY OK」表示
+                                
+                                ;************************* SD FILE DIRECTORY **********************************
+       A2A7                     SDIR:
+0002A7 A2A7 1123A5          10              LD      DE,QFIND            ;SD-CARDファイル名検索文字列入力
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+0002AA A2AA DF              12 +            RST     18H
+0002AB A2AB 05                 +            DB      a1
+                                            SVC     BINKEY
+                               +; a1 = 0x0034:52
+0002AC A2AC DF              12 +            RST     18H
+0002AD A2AD 34                 +            DB      a1
+                                
+0002AE A2AE CDF5A2          17              CALL    DIRLIST             ;DIRLIST本体をコール
+0002B1 A2B1 FE00             7              CP      00H                 ;00以外ならERROR
+0002B3 A2B3 2821            12              JR      Z,SLOAD2            ;00ならDEにセットされているファイル名でSLOADを実行
+0002B5 A2B5 FE01             7              CP      01H                 ;01なら通常リターン
+0002B7 A2B7 C8              11              RET     Z
+0002B8 A2B8 F5              11  SDIR5:      PUSH    AF
+0002B9 A2B9 FEF0             7              CP      0F0H
+0002BB A2BB C2C4A2          10              JP      NZ,SDIR3
+0002BE A2BE 1170A4          10              LD      DE,ERR_MSG1         ;SD-CARD INITIALIZE ERROR
+0002C1 A2C1 C3D2A2          10              JP      SDIR4
+0002C4 A2C4 FEF1             7  SDIR3:      CP      0F1H
+0002C6 A2C6 C2CFA2          10              JP      NZ,SDIR99
+0002C9 A2C9 118AA4          10              LD      DE,ERR_MSG2         ;NOT FIND FILE
+0002CC A2CC C3D2A2          10              JP      SDIR4
+       A2CF                     SDIR99:
+0002CF A2CF 11DBA4          10              LD      DE,MSG99            ;その他ERROR
+                                SDIR4:      SVC     CRTMSG
+                               +; a1 = 0x0005:5
+0002D2 A2D2 DF              12 +            RST     18H
+0002D3 A2D3 05                 +            DB      a1
+0002D4 A2D4 F1              10              POP     AF
+0002D5 A2D5 C9              10              RET
+                                
+0002D6 A2D6 3E80             7  SLOAD2:     LD      A,80H               ;コマンド「80」送信(SDからLOAD)
+0002D8 A2D8 CD92A3          17              CALL    STCD
+0002DB A2DB A7               4              AND     A                   ;0以外ならERROR 0以外のはずはないが一応
+0002DC A2DC C237A1          10              JP      NZ,ERR1
+                                            
+0002DF A2DF 0621             7              LD      B,21H
+0002E1 A2E1 11BCA5          10              LD      DE,DNAME
+0002E4 A2E4 1A               7  FN2:        LD      A,(DE)
+0002E5 A2E5 CDD0A3          17              CALL    SBYTE               ;ファイル名を送信
+0002E8 A2E8 13               6              INC     DE
+0002E9 A2E9 10F9            13              DJNZ    FN2
+0002EB A2EB CDCDA3          17              CALL    RBYTE               ;ファイル名のファイルがSDに存在すればA=0 0以外ならERROR 0以外のはずはないが一応
+0002EE A2EE A7               4              AND     A
+0002EF A2EF C23CA1          10              JP      NZ,ERR2
+0002F2 A2F2 C349A0          10              JP      MD1
+                                
+                                ;**** DIRLIST本体 ****
+                                ;****              戻り値 A=エラーコード ****
+       A2F5                     DIRLIST:
+0002F5 A2F5 3E82             7              LD      A,82H               ;DIRLISTコマンド82Hを送信
+0002F7 A2F7 CD92A3          17              CALL    STCD                ;コマンドコード送信
+0002FA A2FA A7               4              AND     A                   ;00以外ならERROR
+0002FB A2FB C291A3          10              JP      NZ,DLRET
+                                        
+0002FE A2FE C5              11              PUSH    BC
+0002FF A2FF 0621             7              LD      B,21H               ;ファイルネーム検索文字列33文字分を送信
+000301 A301 1A               7  STLT1:      LD      A,(DE)
+000302 A302 F5              11  STLT3:      PUSH    AF
+000303 A303 CD18A4          17              CALL    SNDBYTE             ;ファイルネーム検索文字列を送信
+000306 A306 F1              10              POP     AF
+000307 A307 A7               4              AND     A                   ;00H以外ならDEをインクリメント
+000308 A308 2801            12              JR      Z,STLT4
+00030A A30A 13               6              INC     DE
+00030B A30B 10F4            13  STLT4:      DJNZ    STLT1               ;33文字分ループ
+                                
+00030D A30D C1              10              POP     BC
+00030E A30E CDE8A3          17              CALL    RCVBYTE             ;状態取得(00H=OK)
+000311 A311 A7               4              AND     A                   ;00以外ならERROR
+000312 A312 C291A3          10              JP      NZ,DLRET
+                                
+000315 A315 11BCA5          10  DL1:        LD      DE,DNAME
+000318 A318 CDE8A3          17  DL2:        CALL    RCVBYTE             ;'00H'を受信するまでを一行とする
+00031B A31B A7               4              AND     A
+00031C A31C 2810            12              JR      Z,DL3
+00031E A31E FEFF             7              CP      0FFH                ;'0FFH'を受信したら終了
+000320 A320 2817            12              JR      Z,DL4
+000322 A322 FEFD             7              CP      0FDH                ;'0FDH'受信で文字列を取得してSETLしたことを表示
+000324 A324 281B            12              JR      Z,DL9
+000326 A326 FEFE             7              CP      0FEH                ;'0FEH'を受信したら一時停止して一文字入力待ち
+000328 A328 2837            12              JR      Z,DL5
+00032A A32A 12               7              LD      (DE),A
+00032B A32B 13               6              INC     DE
+00032C A32C 18EA            12              JR      DL2
+00032E A32E 12               7  DL3:        LD      (DE),A
+00032F A32F 11BCA5          10              LD      DE,DNAME            ;'00H'を受信したら一行分を表示して改行
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+000332 A332 DF              12 +            RST     18H
+000333 A333 05                 +            DB      a1
+       A334                     DL33:
+                                            SVC     CR2                 ;改行
+                               +; a1 = 0x0002:2
+000334 A334 DF              12 +            RST     18H
+000335 A335 02                 +            DB      a1
+000336 A336 C315A3          10              JP      DL1
+000339 A339 CDE8A3          17  DL4:        CALL    RCVBYTE             ;状態取得(00H=OK)
+00033C A33C 3E01             7              LD      A,01H
+00033E A33E C391A3          10              JP      DLRET
+                                
+                                DL9:        SVC     CR2                 ;改行
+                               +; a1 = 0x0002:2
+000341 A341 DF              12 +            RST     18H
+000342 A342 02                 +            DB      a1
+                                        
+000343 A343 11BCA5          10              LD      DE,DNAME            ;選択したファイルネームを再度取得
+000346 A346 CDE8A3          17  DL91:       CALL    RCVBYTE
+000349 A349 12               7              LD      (DE),A
+00034A A34A FE0D             7              CP      0DH
+00034C A34C 2001            12              JR      NZ,DL92
+00034E A34E AF               4              XOR     A
+00034F A34F A7               4  DL92:       AND     A
+000350 A350 13               6              INC     DE
+000351 A351 C246A3          10              JP      NZ,DL91
+                                
+000354 A354 11A5A5          10              LD      DE,SETMSG           ;取得したファイルネームを表示
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+000357 A357 DF              12 +            RST     18H
+000358 A358 05                 +            DB      a1
+                                            SVC     CR2                 ;改行
+                               +; a1 = 0x0002:2
+000359 A359 DF              12 +            RST     18H
+00035A A35A 02                 +            DB      a1
+00035B A35B CDE8A3          17              CALL    RCVBYTE             ;状態取得(00H=OK)読み飛ばし
+00035E A35E C391A3          10              JP      DLRET
+                                
+       A361                     DL5:
+000361 A361 117DA5          10              LD      DE,MSG_KEY1         ;HIT ANT KEY表示
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+000364 A364 DF              12 +            RST     18H
+000365 A365 05                 +            DB      a1
+       A366                     DL6:
+000366 A366 AF               4              XOR     A
+                                            SVC     INKEY               ;KEY SCAN
+                               +; a1 = 0x000d:13
+000367 A367 DF              12 +            RST     18H
+000368 A368 0D                 +            DB      a1
+                                        
+000369 A369 CA66A3          10              JP      Z,DL6
+00036C A36C FE1B             7              CP      1BH                 ;ESCで打ち切り
+00036E A36E CA89A3          10              JP      Z,DL7
+000371 A371 FE30             7              CP      30H                 ;数字0～9ならそのままArduinoへ送信してSETL処理へ
+000373 A373 DA7BA3          10              JP      C,DL61
+000376 A376 FE3A             7              CP      3AH
+000378 A378 DA8BA3          10              JP      C,DL8
+       A37B                     DL61:
+00037B A37B FE42             7              CP      42H                 ;「B」で前ページ
+00037D A37D CA8BA3          10              JP      Z,DL8
+000380 A380 FE62             7              CP      62H                 ;「b」で前ページ
+000382 A382 CA8BA3          10              JP      Z,DL8
+000385 A385 AF               4              XOR     A                   ;それ以外で継続
+000386 A386 C38BA3          10              JP      DL8
+000389 A389 3EFF             7  DL7:        LD      A,0FFH              ;0FFH中断コードを送信
+00038B A38B CD18A4          17  DL8:        CALL    SNDBYTE
+00038E A38E C315A3          10              JP      DL1
+                                        
+000391 A391 C9              10  DLRET:      RET
+                                
+                                ;**** コマンド送信 (IN:A コマンドコード)****
+000392 A392 CD18A4          17  STCD:       CALL    SNDBYTE          ;Aレジスタのコマンドコードを送信
+000395 A395 CDE8A3          17              CALL    RCVBYTE          ;状態取得(00H=OK)
+000398 A398 C9              10              RET
+                                
+                                ;******** DEレジスタの16進数を16進数文字列4桁に変換して表示 **************
+       A399                     DSP4HEX:
+000399 A399 D5              11              PUSH    DE
+00039A A39A 1170A5          10              LD      DE,ADRS             ;入力ADDRESS確認
+                                            SVC     CRTMSG
+                               +; a1 = 0x0005:5
+00039D A39D DF              12 +            RST     18H
+00039E A39E 05                 +            DB      a1
+00039F A39F D1              10              POP     DE
+0003A0 A3A0 7A               4              LD      A,D
+0003A1 A3A1 CDA9A3          17              CALL    DSPHEX              ;Dレジスタ表示
+0003A4 A3A4 7B               4              LD      A,E
+0003A5 A3A5 CDA9A3          17              CALL    DSPHEX              ;Eレジスタ表示
+0003A8 A3A8 C9              10              RET
+                                
+                                ;******** Aレジスタの16進数を16進数文字列2桁に変換して表示 ****************
+       A3A9                     DSPHEX:
+0003A9 A3A9 D5              11              PUSH    DE
+0003AA A3AA F5              11              PUSH    AF
+0003AB A3AB CB3F             8              SRL     A                   ;上位4Bit
+0003AD A3AD CB3F             8              SRL     A
+0003AF A3AF CB3F             8              SRL     A
+0003B1 A3B1 CB3F             8              SRL     A
+0003B3 A3B3 CDC2A3          17              CALL    HEX2ASC             ;ASCII文字に変換
+                                            SVC     CRT1C               ;AレジスタのASCIIコードを表示
+                               +; a1 = 0x0003:3
+0003B6 A3B6 DF              12 +            RST     18H
+0003B7 A3B7 03                 +            DB      a1
+0003B8 A3B8 F1              10              POP     AF
+0003B9 A3B9 E60F             7              AND     0FH                 ;下位4Bit
+0003BB A3BB CDC2A3          17              CALL    HEX2ASC             ;ASCII文字に変換
+                                            SVC     CRT1C               ;AレジスタのASCIIコードを表示
+                               +; a1 = 0x0003:3
+0003BE A3BE DF              12 +            RST     18H
+0003BF A3BF 03                 +            DB      a1
+0003C0 A3C0 D1              10              POP     DE
+0003C1 A3C1 C9              10              RET
+                                
+                                ;********* Aレジスタの下位4Bitを16進数1桁としてASCIIコードに変換 ************
+       A3C2                     HEX2ASC:
+0003C2 A3C2 FE0A             7              CP      0AH
+0003C4 A3C4 3004            12              JR      NC,HA1
+0003C6 A3C6 C630             7              ADD     A,30H               ;0-9なら+30H
+0003C8 A3C8 1802            12              JR      HA2
+0003CA A3CA C637             7  HA1:        ADD     A,37H               ;A-Fなら+37H
+0003CC A3CC C9              10  HA2:        RET
+                                
+0003CD A3CD C3E8A3          10  RBYTE:      JP      RCVBYTE
+0003D0 A3D0 C318A4          10  SBYTE:      JP      SNDBYTE
+                                
+                                ;**** 2BIT受信 ****
+                                ;AレジスタBIT2、BIT3を受信する
+       A3D3                     RCV2BIT:
+0003D3 A3D3 CD0AA4          17              CALL    F1CHK       ;BIT1が0になるまでLOOP
+0003D6 A3D6 DBEF            11              IN      A,(0EFH)    ;JOYPORT0 -> A
+0003D8 A3D8 F5              11              PUSH    AF
+0003D9 A3D9 CBA7             8              RES     4,A
+0003DB A3DB D3EF            11              OUT     (0EFH),A    ;BIT6 <- 0
+0003DD A3DD CD11A4          17              CALL    F2CHK       ;BIT1が1になるまでLOOP
+0003E0 A3E0 CBE7             8              SET     4,A
+0003E2 A3E2 D3EF            11              OUT     (0EFH),A    ;BIT6 <- 1
+0003E4 A3E4 F1              10              POP     AF
+0003E5 A3E5 E603             7              AND     03H
+0003E7 A3E7 C9              10              RET
+                                
+                                ;**** 1BYTE受信 ****
+                                ;受信DATAを2BITずつ受信しAレジスタにセットしてリターン
+       A3E8                     RCVBYTE:
+0003E8 A3E8 C5              11              PUSH    BC
+0003E9 A3E9 CDD3A3          17              CALL    RCV2BIT
+0003EC A3EC 47               4              LD      B,A
+0003ED A3ED CDD3A3          17              CALL    RCV2BIT
+0003F0 A3F0 17               4              RLA
+0003F1 A3F1 17               4              RLA
+0003F2 A3F2 80               4              ADD     A,B
+0003F3 A3F3 47               4              LD      B,A
+0003F4 A3F4 CDD3A3          17              CALL    RCV2BIT
+0003F7 A3F7 17               4              RLA
+0003F8 A3F8 17               4              RLA
+0003F9 A3F9 17               4              RLA
+0003FA A3FA 17               4              RLA
+0003FB A3FB 80               4              ADD     A,B
+0003FC A3FC 47               4              LD      B,A
+0003FD A3FD CDD3A3          17              CALL    RCV2BIT
+000400 A400 17               4              RLA
+000401 A401 17               4              RLA
+000402 A402 17               4              RLA
+000403 A403 17               4              RLA
+000404 A404 17               4              RLA
+000405 A405 17               4              RLA
+000406 A406 80               4              ADD     A,B
+000407 A407 2F               4              CPL
+000408 A408 C1              10              POP     BC
+000409 A409 C9              10              RET
+                                
+                                ;**** BUSYをCHECK(1) ****
+                                ; EFH BIT1が0になるまでLOP
+00040A A40A DBEF            11  F1CHK:      IN      A,(0EFH)
+00040C A40C E604             7              AND     04H        ;BIT2 = 0?
+00040E A40E 20FA            12              JR      NZ,F1CHK
+000410 A410 C9              10              RET
+                                
+                                ;**** BUSYをCHECK(0) ****
+                                ; EFH BIT1が1になるまでLOOP
+000411 A411 DBEF            11  F2CHK:      IN      A,(0EFH)
+000413 A413 E604             7              AND     04H        ;BIT2 = 1?
+000415 A415 28FA            12              JR      Z,F2CHK
+000417 A417 C9              10              RET
+                                
+                                ;**** 1BYTE送信 ****
+                                ;Aレジスタの内容を下位2BITずつ送信
+       A418                     SNDBYTE:
+000418 A418 C5              11              PUSH    BC
+000419 A419 2F               4              CPL
+00041A A41A 47               4              LD      B,A
+00041B A41B E603             7              AND     03H
+00041D A41D CD40A4          17              CALL    SND2BIT
+000420 A420 78               4              LD      A,B
+000421 A421 E60C             7              AND     0CH
+000423 A423 1F               4              RRA
+000424 A424 1F               4              RRA
+000425 A425 CD40A4          17              CALL    SND2BIT
+000428 A428 78               4              LD      A,B
+000429 A429 E630             7              AND     30H
+00042B A42B 1F               4              RRA
+00042C A42C 1F               4              RRA
+00042D A42D 1F               4              RRA
+00042E A42E 1F               4              RRA
+00042F A42F CD40A4          17              CALL    SND2BIT
+000432 A432 78               4              LD      A,B
+000433 A433 E6C0             7              AND     0C0H
+000435 A435 1F               4              RRA
+000436 A436 1F               4              RRA
+000437 A437 1F               4              RRA
+000438 A438 1F               4              RRA
+000439 A439 1F               4              RRA
+00043A A43A 1F               4              RRA
+00043B A43B CD40A4          17              CALL    SND2BIT
+00043E A43E C1              10              POP     BC
+00043F A43F C9              10              RET
+                                
+                                ;**** 2BIT送信 ****
+                                ;AレジスタBIT0、BIT1を送信する
+       A440                     SND2BIT:
+000440 A440 CBE7             8              SET     4,A
+000442 A442 D3EF            11              OUT     (0EFH),A
+000444 A444 CBA7             8              RES     4,A
+000446 A446 D3EF            11              OUT     (0EFH),A    ;BIT6 <- 0
+000448 A448 CD0AA4          17              CALL    F1CHK       ;BIT1が0になるまでLOOP
+00044B A44B CBE7             8              SET     4,A
+00044D A44D D3EF            11              OUT     (0EFH),A    ;BIT6 <- 1
+00044F A44F CD11A4          17              CALL    F2CHK
+000452 A452 C9              10              RET
+                                        
+000453 A453 5344203C2D3E2046    TITLE:      DEFB    'SD <-> FD Copy Tool',00H
+            4420436F70792054    
+            6F6F6C00            
+000467 A467 436F7079204F6B0D    OK_MSG:     DEFB    'Copy Ok',0DH,00H
+            00                  
+000470 A470 53442D4341524420    ERR_MSG1:   DEFB    'SD-CARD Initialize Error',0DH,00H
+            496E697469616C69    
+            7A65204572726F72    
+            0D00                
+00048A A48A 4E6F742046696E64    ERR_MSG2:   DEFB    'Not Find File',0DH,00H
+            2046696C650D00      
+000499 A499 425344204E6F7420    ERR_MSG3:   DEFB    'BSD Not Open',0DH,00H
+            4F70656E0D00        
+0004A7 A4A7 425344204E6F7420    ERR_MSG4:   DEFB    'BSD Not Write Mode',0DH,00H
+            5772697465204D6F    
+            64650D00            
+0004BB A4BB 425344204E6F7420    ERR_MSG5:   DEFB    'BSD Not Read Mode',0DH,00H
+            52656164204D6F64    
+            650D00              
+0004CE A4CE 436F70792043616E    ERR_MSG9:   DEFB    'Copy Cancel',0DH,00H
+            63656C0D00          
+0004DB A4DB 4572726F720D0A00    MSG99:      DEFB    'Error',0DH,0AH,00H
+0004E3 A4E3 53656C6563743F28    GSEL:       DEFB    'Select?(1:SD->FD 2:FD->SD 3:SD Dir 9:Cancel)',00H
+            313A53442D3E4644    
+            20323A46442D3E53    
+            4420333A53442044    
+            697220393A43616E    
+            63656C2900          
+000510 A510 53442D4341524420    QNAME:      DEFB    'SD-CARD File Name?',00H
+            46696C65204E616D    
+            653F00              
+000523 A523 53442D4341524420    QFIND:      DEFB    'SD-CARD Search Name?',00H
+            536561726368204E    
+            616D653F00          
+000538 A538 4D6F646528313A4F    QMODE:      DEFB    'Mode(1:OBT 2:BTX 3:BSD)?',00H
+            425420323A425458    
+            20333A425344293F    
+            00                  
+000551 A551 4C6F616420416464    QLOAD:      DEFB    'Load Address?',00H
+            726573733F00        
+00055F A55F 4578656375746520    QEXE:       DEFB    'Execute Address?',00H
+            416464726573733F    
+            00                  
+000570 A570 5365722041646472    ADRS:       DEFB    'Ser Address:',00H
+            6573733A00          
+00057D A57D 53656C3A302D3920    MSG_KEY1    DEFB    'Sel:0-9 Next:Any Key Back:B Break:ESC',0DH,0AH,00H
+            4E6578743A416E79    
+            204B657920426163    
+            6B3A422042726561    
+            6B3A4553430D0A00    
+0005A5 A5A5 5344202D3E204644    SETMSG      DEFB    'SD -> FD Set File Name:'
+            205365742046696C    
+            65204E616D653A      
+                                
+                                
+       A5BC                     DNAME:      DS      40
+       A5E4                     DBLOCK:     DS      2
+       A5E6                     FMODE:      DS      1
+       A5E7                     FILESIZE:   DS      2
+       A5E9                     LOADADR:    DS      2
+       A5EB                     EXECADR:    DS      2
+                                            
+       A5ED                     BUFFER:     DS      256
+                                
+                                            END
+[EOF:SD_TRANS.s:UTF_8]
