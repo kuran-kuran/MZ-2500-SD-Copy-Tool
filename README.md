@@ -46,11 +46,16 @@ MicroSD Card Adapterについているピンヘッダを除去してハンダ付
 ## 転送プログラム
 　MZ-2500のFD、HDD、FDDエミュレータ用FDイメージにOBTファイルを転送する手段がある方はSD_TRANSフォルダ内のSD_TRANS.binを転送してください。
 
-　転送する手段の無い方はBASIC-S25又はBASIC-M25からモニタMコマンドでSD_LOADERフォルダ内のSD_LOADER.binの内容を入力し、SコマンドでSD_LOADER.bin等の名前を付けてセーブしてください。
+　転送する手段の無い方はBASIC-S25又はBASIC-M25からモニタMコマンドでSD_LOADERフォルダ内のSD_LOADER.binの内容を入力します。
 
-　SD_TRANSフォルダ内のSD_TRANS.binをSD-CARDにコピーしておきます。
+![SD_LOADER](https://github.com/yanataka60/MZ-2500-SD-Copy-Tool/blob/main/JPEG/SD_LOADER.jpg)
 
-　SD_LOADER.binの入力間違いが無いことを確認し、
+　入力間違いが無いことを確認し、SコマンドでSD_LOADER.bin等の名前を付けてセーブしてください。
+
+　　*S A000 A16F A000 SD_LOADER.bin
+
+　次にSD_TRANSフォルダ内のSD_TRANS.binをSD-CARDにコピーしてから次のコマンドを実行します。
+
 
 　(BASIC-M25)
 
