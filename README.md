@@ -26,7 +26,7 @@
 
 ### 注2)MicroSD Card Adapterを使う場合
 
-J2に取り付けます。
+J3に取り付けます。
 
 MicroSD Card Adapterについているピンヘッダを除去してハンダ付けするのが一番確実ですが、J2の穴にMicroSD Card Adapterをぴったりと押しつけ、裏から多めにハンダを流し込むことでハンダ付けをする方法もあります。なお、この方法の時にはしっかりハンダ付けが出来たかテスターで導通を確認しておいた方が安心です。
 
@@ -43,7 +43,7 @@ MicroSD Card Adapterについているピンヘッダを除去してハンダ付
 
 　「SdFat」で検索すれば見つかります。「SdFat」と「SdFat - Adafruit Fork」が見つかりますが「SdFat」のほうを使っています。
 
-## 転送プログラム
+## MZ-2500用Copy Toolプログラム
 　MZ-2500のFD、HDD、FDDエミュレータ用FDイメージにOBTファイルを転送する手段がある方はSD_TRANSフォルダ内のSD_TRANS.binを転送してください。
 
 　転送する手段の無い方はBASIC-S25又はBASIC-M25からモニタMコマンドでSD_LOADERフォルダ内のSD_LOADER.binの内容を入力します。
@@ -57,7 +57,7 @@ MicroSD Card Adapterについているピンヘッダを除去してハンダ付
 　次にSD_TRANSフォルダ内のSD_TRANS.binをSD-CARDにコピーし、次のコマンドを実行します。
 
 
-　(BASIC-M25)
+### (BASIC-M25)
 
 　clear &HA000
 
@@ -67,7 +67,7 @@ MicroSD Card Adapterについているピンヘッダを除去してハンダ付
 
 　call &HA000
 
-　(BASIC-S25)
+### (BASIC-S25)
 
 　limit &HA000
 
