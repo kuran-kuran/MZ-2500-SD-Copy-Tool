@@ -110,15 +110,15 @@ MicroSD Card Adapterについているピンヘッダを除去してハンダ付
 
 　次にSD-CARDのファイル名を指定します。
 
-![Copy_Tool_02](https://github.com/yanataka60/MZ-2500-SD-Copy-Tool/blob/main/JPEG/Copy_Tool_02.JPG)
-
-　大文字、小文字は区別されるので大文字、小文字も正確に入力します。
+　大文字、小文字は区別されるので大文字、小文字も正確に入力してください。
 
 　FD、HDDにはSD-CARDのファイル名のままコピーされますが、16文字を超えた分は切り捨てられます。
 
-![Copy_Tool_03](https://github.com/yanataka60/MZ-2500-SD-Copy-Tool/blob/main/JPEG/Copy_Tool_03.JPG)
+![Copy_Tool_02](https://github.com/yanataka60/MZ-2500-SD-Copy-Tool/blob/main/JPEG/Copy_Tool_02.JPG)
 
 　ファイルモードを指定します。SD-CARDのファイルにはファイルモード等の情報が含まれていないため指定する必要があります。
+
+![Copy_Tool_03](https://github.com/yanataka60/MZ-2500-SD-Copy-Tool/blob/main/JPEG/Copy_Tool_03.JPG)
 
 　実際のファイルモードと指定したファイルモードが間違っていてもコピーは正常終了しますが、MZ-2500のBASICからは期待した動作が出来なくなりますので削除してください。
 
