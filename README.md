@@ -141,14 +141,14 @@ MicroSD Card Adapterについているピンヘッダを除去してハンダ付
 
 　ただし、改行コードは0Dhのみ(Windowsのテキストの改行コードは通常0Dh,0Ah)、漢字コードはSHIFTJISで作成してください。
 
-### 注意!!
+## 注意!!
 　SD-CARDからコピーされるファイル名のファイルがコピー先のFD、HDD上に既にある場合、エラー終了します。
 
 ![Copy_Tool_07](https://github.com/yanataka60/MZ-2500-SD-Copy-Tool/blob/main/JPEG/Copy_Tool_07.JPG)
 
 　この「already exist error」で中止されたことをArduinoは認識できないため転送処理が中途半端なまま待機状態となっており、次にCopy Toolが起動されても正常に処理できません。
 
-### 　SD-Dongleを挿し直すことで正常に処理できるよう復旧するので、もう一度Copy Toolを起動する前に必ずSD-Dongleを挿し直してください。
+## 　SD-Dongleを挿し直すことで正常に処理できるよう復旧するので、もう一度Copy Toolを起動する前に必ずSD-Dongleを挿し直してください。
 
 　FD、HDD上に既にあるファイルもCopy Tool起動前には削除してください。
 
