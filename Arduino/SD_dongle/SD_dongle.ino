@@ -1,3 +1,5 @@
+// 2024.11.30 INPUT_PULLUPに修正
+//
 #include "SdFat.h"
 #include <SPI.h>
 SdFat SD;
@@ -6,7 +8,7 @@ char c_name[40];
 char buf1[10],buf2[10];
 char sdir[10][40];
 File file;
-unsigned int f_length,f_length2,f_length1;
+unsigned long f_length,f_length2,f_length1;
 #define CABLESELECTPIN  (10)
 #define CHKPIN          (15)
 #define PB2PIN          (4)
@@ -41,12 +43,12 @@ void setup(){
   pinMode( PB3PIN,OUTPUT); //送信データ
   pinMode( FLGPIN,OUTPUT); //FLG
 
-  pinMode( PA0PIN,INPUT); //受信データ
-  pinMode( PA1PIN,INPUT); //受信データ
+  pinMode( PA0PIN,INPUT_PULLUP); //受信データ
+  pinMode( PA1PIN,INPUT_PULLUP); //受信データ
 
-  digitalWrite(PB2PIN,HIGH);
-  digitalWrite(PB3PIN,HIGH);
-  digitalWrite(FLGPIN,HIGH);
+  digitalWrite(PB2PIN,LOW);
+  digitalWrite(PB3PIN,LOW);
+  digitalWrite(FLGPIN,LOW);
 
   sdinit();
 }
@@ -151,7 +153,7 @@ void f_load(void){
 //SDカードに書き込み
 void f_save(void){
   int wk1 = 0;
-  unsigned int lp1,fmode,s_adrs,s_adrs1,s_adrs2,g_adrs,g_adrs1,g_adrs2;
+  unsigned long lp1,fmode,s_adrs,s_adrs1,s_adrs2,g_adrs,g_adrs1,g_adrs2;
   String buf11,buf22;
 //ファイルネーム取得
   receive_name(f_name);
