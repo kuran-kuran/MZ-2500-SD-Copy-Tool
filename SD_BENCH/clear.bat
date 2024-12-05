@@ -1,0 +1,2 @@
+del *.als
+del *.mzt
