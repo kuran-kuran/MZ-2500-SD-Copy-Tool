@@ -1,63 +1,112 @@
+CR2		EQU	02H	; 行の先頭で無ければ改行
+CRT1C		EQU	03H	; 1文字表示 A:文字コード
+CRTMSG		EQU	05H	; 文字列表示 DE:文字列先頭アドレス 00Hで終了すること
 
-; 080h load
-; 1バイト 送信 コマンド 080h
-; 1バイト 受信 状態 (0:正常, 0F0h:SDカード初期化エラー, 0F4h:コマンドエラー)
-; 33バイト 送信 ファイル名(0で終わる文字列、33バイトよりも短い場合は0埋め)
-; 1バイト 受信 状態 (0:正常, 0F1h:ファイルが無い, 0FFh: ファイルがオープンできない)
-; 2バイト 受信 ファイルサイズ
-; 1バイト 送信 転送するか? (0:転送開始, その他:転送キャンセル)
-; ファイルサイズ分のバイト数 受信 ファイルデータ
-;
-; 081h save
-; 1バイト 送信 コマンド 080h
-; 1バイト 受信 状態 (0:正常, 0F0h:SDカード初期化エラー, 0F4h:コマンドエラー)
-; 33バイト 送信 ファイル名(0で終わる文字列、33バイトよりも短い場合は0埋め)
-; 1バイト 送信 ファイルタイプ (1: OBT, 2:BTX, 3: BSD)
-; 2バイト 送信 ファイルサイズ
-; 2バイト 送信 スタートアドレス
-; 2バイト 送信 実行アドレス
-; 1バイト 受信 状態 (0:正常, 0FFh: ファイルがオープンできない)
-;
 	ORG	0A000h
 
 MAIN	PROC
 MAIN:
+	CALL	READ
 	RET
 ENDP
 
 READ	PROC
 READ:
 	; Send: command 80h
+	LD	DE, MES1
+	RST	18h
+	DB	CRTMSG
+	RST	18h
+	DB	CR2
+
 	LD	A, 80h
-	CALL	SNDBYTE
+	CALL	SNDBYTE ; command
+
 	; Recv: status byte
-	CALL	RCVBYTE
+	LD	DE, MES2
+	RST	18h
+	DB	CRTMSG
+	RST	18h
+	DB	CR2
+
+	CALL	RCVBYTE ; status
 	AND	A
 	JP	NZ, ERR
+
 	; Send Filename 33bytes
+	LD	DE, MES3
+	RST	18h
+	DB	CRTMSG
+	RST	18h
+	DB	CR2
+
 	LD	B, 33
 	LD	HL, READFILE
-@@:
+filename_loop:
 	LD	A, (HL)
-	CALL	SNDBYTE
+
+	JR	NZ, @f
+	LD	A, '#'
+@@:
+	RST	18h
+	DB	CRT1C
+
+	CALL	SNDBYTE ; filename 33bytes
 	INC	HL
-	DEC	B
-	DJNZ	@b
+	DJNZ	filename_loop
+
+	RST	18h
+	DB	CR2
+
+	; filename 33bytes
+;	LD	DE, READFILE
+;	RST	18h
+;	DB	CRTMSG
+;	RST	18h
+;	DB	CR2
+
 	; Recv: status byte
-	CALL	RCVBYTE
+	LD	DE, MES4
+	RST	18h
+	DB	CRTMSG
+	RST	18h
+	DB	CR2
+
+	CALL	RCVBYTE ; status
 	AND	A
 	JP	NZ, ERR
+
 	; Recv: filesize
-	CALL	RCVBYTE
+	LD	DE, MES5
+	RST	18h
+	DB	CRTMSG
+	RST	18h
+	DB	CR2
+
+	CALL	RCVBYTE ; filesize low
 	LD	L, A
-	CALL	RCVBYTE
+	CALL	RCVBYTE ; filesize high
 	LD	H, A ; HL = filesize
+
 	; Transfar start
+	LD	DE, MES6
+	RST	18h
+	DB	CRTMSG
+	RST	18h
+	DB	CR2
+
 	XOR	A
-	CALL	SNDBYTE
+	CALL	SNDBYTE ; start
+
 	; Recv filedata
+	LD	DE, MES7
+	RST	18h
+	DB	CRTMSG
+	RST	18h
+	DB	CR2
+
 @@:
-	CALL	RCVBYTE
+	CALL	RCVBYTE ; data
 	DEC	HL
 	LD	A, H
 	OR	L
@@ -66,6 +115,11 @@ READ:
 	RET
 ERR:
 	SCF
+	LD	DE, ERROR_MES
+	RST	18h
+	DB	CRTMSG
+	RST	18h
+	DB	CR2
 	RET
 ENDP
 
@@ -73,7 +127,30 @@ INCLUDE "SDTOOL.ASM"
 
 ; 33バイト
 READFILE:
-	DB	"test_2000H_2000H",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	DB	"BASIC-M25(6Z002)_2000H_2000H.OBT",0
 
+MES1:
+	DB	"Send: command 80h",0
+
+MES2:
+	DB	"Recv: status byte", 0
+
+MES3:
+	DB	"Send Filename 33bytes",0
+
+MES4:
+	DB	"Recv: status byte", 0
+
+MES5:
+	DB	"Recv: filesize", 0
+
+MES6:
+	DB	"Transfar start", 0
+
+MES7:
+	DB	"Recv filedata", 0
+
+ERROR_MES:
+	DB	"Error", 0
 
 	END 0A000h
