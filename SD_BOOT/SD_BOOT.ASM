@@ -1,12 +1,21 @@
-CR2		EQU	02H	; 行の先頭で無ければ改行
-CRT1C		EQU	03H	; 1文字表示 A:文字コード
-CRTMSG		EQU	05H	; 文字列表示 DE:文字列先頭アドレス 00Hで終了すること
+CR2		EQU	02h	; 行の先頭で無ければ改行
+CRT1C		EQU	03h	; 1文字表示 A:文字コード
+CRTMSG		EQU	05h	; 文字列表示 DE:文字列先頭アドレス 00Hで終了すること
+TINIT		EQU	64h	; テキスト画面を初期化
 
 	ORG	02000h
 
 MAIN	PROC
 MAIN:
 	NOP
+
+	LD	A, 000001000b
+	RST	18h
+	DB	TINIT
+	LD	A, 12 ; cls
+	RST	18h
+	DB	CRT1C
+
 	LD	DE, MES_HELLO
 	RST	18h
 	DB	CRTMSG
@@ -39,17 +48,27 @@ BOOT:
 	LD	A, 80h
 	CALL	SNDBYTE ; command
 
+LD	A, 'A'
+RST	18h
+DB	CRT1C
+
 	; Recv: status byte
 	CALL	RCVBYTE ; status
 	AND	A
 	JP	NZ, ERR
+
+LD	A, 'B'
+RST	18h
+DB	CRT1C
 
 	; Send Filename 33bytes
 	LD	B, 33
 	LD	HL, READFILE
 filename_loop:
 	LD	A, (HL)
+	PUSH	AF
 	CALL	SNDBYTE ; filename 33bytes
+	POP	AF
 
 	OR	A
 	JR	NZ, @f
@@ -64,10 +83,18 @@ filename_loop:
 	RST	18h
 	DB	CR2
 
+LD	A, 'C'
+RST	18h
+DB	CRT1C
+
 	; Recv: status byte
 	CALL	RCVBYTE ; status
 	AND	A
 	JP	NZ, ERR
+
+LD	A, 'D'
+RST	18h
+DB	CRT1C
 
 	; Recv: filesize
 	CALL	RCVBYTE ; filesize low
@@ -75,9 +102,17 @@ filename_loop:
 	CALL	RCVBYTE ; filesize high
 	LD	B, A ; HL = filesize
 
+LD	A, 'E'
+RST	18h
+DB	CRT1C
+
 	; Transfar start
 	XOR	A
 	CALL	SNDBYTE ; start
+
+LD	A, 'F'
+RST	18h
+DB	CRT1C
 
 	; Recv filedata
 @@:
@@ -85,11 +120,33 @@ filename_loop:
 	LD	(HL), A
 	INC	HL
 	DEC	DE
+
+RST	18h
+DB	CRT1C
+
 	LD	A, B
 	OR	C
 	JR	NZ, @b
 
 	; Boot
+	XOR	A
+	OUT	(0B4H),A
+	OUT	(0B5H),A ; 0
+	LD	A, 2
+	OUT	(0B5H),A ; 2
+	INC	A
+	OUT	(0B5H),A ; 3
+	INC	A
+	OUT	(0B5H),A ; 4
+	INC	A
+	OUT	(0B5H),A ; 5
+	INC	A
+	OUT	(0B5H),A ; 6
+	INC	A
+	OUT	(0B5H),A ; 7
+	INC	A
+	OUT	(0B5H),A ; 8
+
 	JP	2000h
 
 ERR:
@@ -120,9 +177,10 @@ MES_ERROR:
 
 	DW	MAIN_END - MAIN
 	DW	BOOT_END - BOOT
+	DW	32768 - (MAIN_END - MAIN) - (BOOT_END - BOOT)
 
 BOOT_END:
 
-	DS	32226 - (MAIN_END - MAIN) + (BOOT_END - BOOT)
+	DS	32768 - (MAIN_END - MAIN) - (BOOT_END - BOOT)
 
 	END 02000h
