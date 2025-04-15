@@ -1,22 +1,34 @@
 // 2024.11.30 INPUT_PULLUPに修正
 // 2024.12.24 RaspberryPI Picoでビルドできるようにした
+// 2025.04.16 RaspberryPI Pico2でビルドできるようにした
 //
-#include <SdFat.h>
+// Joypad  Arduino       Pico
+// 1 ----- 4(PB2)  ----- 1
+// 2 ----- 5(PB3)  ----- 2
+// 3 ----- 14(GLG) ----- 3
+// 4 ----- NC      ----- NC
+// 5 ----- +5V     ----- VBUS
+// 6 ----- 16(PA0) ----- 4
+// 7 ----- 17(PA1) ----- 5
+// 8 ----- 15(CHK) ----- 0
+// 9 ----- GND     ----- GND
+//
 #include <SPI.h>
-SdFat SD;
+#include <SD.h>
+//SdFat SD;
 char f_name[40];
 char c_name[40];
 char buf1[10],buf2[10];
 char sdir[10][40];
-FsFile file;
+File file;
 unsigned long f_length,f_length2,f_length1;
-#define CABLESELECTPIN  (10)
-#define CHKPIN          (15)
-#define PB2PIN          (4)
-#define PB3PIN          (5)
-#define FLGPIN          (14)
-#define PA0PIN          (16)
-#define PA1PIN          (17)
+#define CABLESELECTPIN  (17)
+#define CHKPIN          (0)
+#define PB2PIN          (1)
+#define PB3PIN          (2)
+#define FLGPIN          (3)
+#define PA0PIN          (4)
+#define PA1PIN          (5)
 // ファイル名は、ロングファイルネーム形式対応
 boolean eflg;
 
@@ -46,6 +58,9 @@ void setup(){
 
   pinMode( PA0PIN,INPUT_PULLUP); //受信データ
   pinMode( PA1PIN,INPUT_PULLUP); //受信データ
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH); // LED点灯
 
   digitalWrite(PB2PIN,LOW);
   digitalWrite(PB3PIN,LOW);
@@ -153,7 +168,7 @@ void f_load(void){
 
 //SDカードに書き込み
 void f_save(void){
-  int wk1 = 0;
+  byte wk1 = 0;
   unsigned long lp1,fmode,s_adrs,s_adrs1,s_adrs2,g_adrs,g_adrs1,g_adrs2;
   String buf11,buf22;
 //ファイルネーム取得
@@ -265,19 +280,21 @@ char upper(char c){
 void dirlist(void){
 //比較文字列取得 32+1文字まで
   receive_name(c_name);
-  FsFile file2 = SD.open( "/" );
+  File file2 = SD.open( "/" );
   if( file2 == true ){
 //状態コード送信(OK)
     snd1byte(0x00);
 
-    FsFile entry =  file2.openNextFile();
+    File entry =  file2.openNextFile();
     int cntl2 = 0;
     unsigned int br_chk =0;
     int page = 1;
 //全件出力の場合には10件出力したところで一時停止、キー入力により継続、打ち切りを選択
     while (br_chk == 0) {
       if(entry){
-        entry.getName(f_name,36);
+        //entry.getName(f_name,36);
+        memset(f_name, 0, sizeof(f_name));
+        memcpy(f_name, entry.name(), strlen(entry.name()));
         unsigned int lp1=0;
 //一件送信
 //比較文字列でファイルネームを先頭から比較して一致するものだけを出力
